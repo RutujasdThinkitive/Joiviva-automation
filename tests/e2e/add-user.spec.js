@@ -83,7 +83,14 @@ test('Clinic Users - Add Staff User and Clinic User (Provider)', async ({ page }
   await page.waitForTimeout(3000);
 
   // ─── EDIT STAFF USER ──────────────────────────────────────────────────────────
-  await page.getByRole('row', { name: new RegExp(staffFirstName) }).getByTestId('MoreVertIcon').click();
+  // Find the staff user row - may be on page 2 if list is large
+  const staffRow = page.getByRole('row', { name: new RegExp(`${staffFirstName} ${staffLastName}`) });
+  if (!(await staffRow.isVisible().catch(() => false))) {
+    // Click page 2 button if user is not on page 1
+    await page.getByRole('button', { name: '2' }).click();
+    await page.waitForTimeout(2000);
+  }
+  await staffRow.getByTestId('MoreVertIcon').click();
   await page.getByRole('button', { name: 'Edit User' }).click();
 
   // Update date of birth
