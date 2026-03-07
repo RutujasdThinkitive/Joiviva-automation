@@ -28,7 +28,9 @@ jobs:
         run: npx playwright install --with-deps chromium
 
       - name: Run E2E tests
-        run: npx playwright test tests/e2e/ --project=chromium --reporter=html
+        id: test_run
+        continue-on-error: true
+        run: PLAYWRIGHT_JSON_OUTPUT_NAME=test-results.json npx playwright test tests/e2e/ --project=chromium --reporter=html,json
         env:
           BASE_URL: ${{ secrets.BASE_URL }}
           ADMIN_USERNAME: ${{ secrets.ADMIN_USERNAME }}
@@ -51,3 +53,104 @@ jobs:
           name: test-results-${{ github.run_id }}
           path: test-results/
           retention-days: 30
+
+      - name: Parse test results
+        if: always()
+        id: parse_results
+        run: |
+          if [ -f test-results.json ]; then
+            TOTAL=$(jq '.stats.expected + .stats.unexpected + .stats.flaky + .stats.skipped' test-results.json)
+            PASSED=$(jq '.stats.expected' test-results.json)
+            FAILED=$(jq '.stats.unexpected' test-results.json)
+            SKIPPED=$(jq '.stats.skipped' test-results.json)
+            DURATION=$(jq '.stats.duration' test-results.json)
+            DURATION_SEC=$((DURATION / 1000))
+          else
+            TOTAL="N/A"
+            PASSED="N/A"
+            FAILED="N/A"
+            SKIPPED="N/A"
+            DURATION_SEC="N/A"
+          fi
+          echo "total=$TOTAL" >> $GITHUB_OUTPUT
+          echo "passed=$PASSED" >> $GITHUB_OUTPUT
+          echo "failed=$FAILED" >> $GITHUB_OUTPUT
+          echo "skipped=$SKIPPED" >> $GITHUB_OUTPUT
+          echo "duration=$DURATION_SEC" >> $GITHUB_OUTPUT
+
+      - name: Send Google Chat notification
+        if: always()
+        env:
+          GOOGLE_CHAT_WEBHOOK: ${{ secrets.GOOGLE_CHAT_WEBHOOK }}
+          TEST_RESULT: ${{ steps.test_run.outcome }}
+          TOTAL: ${{ steps.parse_results.outputs.total }}
+          PASSED: ${{ steps.parse_results.outputs.passed }}
+          FAILED: ${{ steps.parse_results.outputs.failed }}
+          SKIPPED: ${{ steps.parse_results.outputs.skipped }}
+          DURATION: ${{ steps.parse_results.outputs.duration }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          if [ "$TEST_RESULT" == "success" ]; then
+            STATUS_ICON="✅"
+            STATUS_TEXT="PASSED"
+          else
+            STATUS_ICON="❌"
+            STATUS_TEXT="FAILED"
+          fi
+
+          curl -X POST "$GOOGLE_CHAT_WEBHOOK" \
+            -H "Content-Type: application/json" \
+            -d "{
+              \"cards\": [{
+                \"header\": {
+                  \"title\": \"${STATUS_ICON} E2E Test Report - ${STATUS_TEXT}\",
+                  \"subtitle\": \"Joiviva QA Automation\"
+                },
+                \"sections\": [{
+                  \"widgets\": [
+                    {
+                      \"keyValue\": {
+                        \"topLabel\": \"Total Tests\",
+                        \"content\": \"${TOTAL}\"
+                      }
+                    },
+                    {
+                      \"keyValue\": {
+                        \"topLabel\": \"Passed\",
+                        \"content\": \"${PASSED}\"
+                      }
+                    },
+                    {
+                      \"keyValue\": {
+                        \"topLabel\": \"Failed\",
+                        \"content\": \"${FAILED}\"
+                      }
+                    },
+                    {
+                      \"keyValue\": {
+                        \"topLabel\": \"Skipped\",
+                        \"content\": \"${SKIPPED}\"
+                      }
+                    },
+                    {
+                      \"keyValue\": {
+                        \"topLabel\": \"Duration\",
+                        \"content\": \"${DURATION}s\"
+                      }
+                    },
+                    {
+                      \"buttons\": [{
+                        \"textButton\": {
+                          \"text\": \"VIEW FULL REPORT\",
+                          \"onClick\": {
+                            \"openLink\": {
+                              \"url\": \"${RUN_URL}\"
+                            }
+                          }
+                        }
+                      }]
+                    }
+                  ]
+                }]
+              }]
+            }"
