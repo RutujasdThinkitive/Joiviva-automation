@@ -83,7 +83,7 @@ test('Clinic Users - Add Staff User and Clinic User (Provider)', async ({ page }
   await page.waitForTimeout(3000);
 
   // ─── EDIT STAFF USER ──────────────────────────────────────────────────────────
-  await page.getByTestId('MoreVertIcon').click();
+  await page.getByRole('row', { name: new RegExp(staffFirstName) }).getByTestId('MoreVertIcon').click();
   await page.getByRole('button', { name: 'Edit User' }).click();
 
   // Update date of birth
