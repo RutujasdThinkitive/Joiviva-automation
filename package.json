@@ -1,0 +1,40 @@
+{
+  "name": "bmad-qa-automation",
+  "version": "1.0.0",
+  "description": "BMAD QA Automation Framework using Playwright",
+  "scripts": {
+    "test": "npx playwright test",
+    "test:headed": "npx playwright test --headed",
+    "test:ui": "npx playwright test --ui",
+    "test:smoke": "npx playwright test tests/smoke/ --project=chromium-admin --project=chromium-provider --project=chromium-login",
+    "test:smoke:headed": "npx playwright test tests/smoke/ --project=chromium-admin --project=chromium-provider --project=chromium-login --headed",
+    "test:happy-path": "npx playwright test tests/happy-path/ --project=chromium-admin --project=chromium-provider --project=chromium-login",
+    "test:happy-path:headed": "npx playwright test tests/happy-path/ --project=chromium-admin --project=chromium-provider --project=chromium-login --headed",
+    "test:regression": "npx playwright test tests/regression/ --project=chromium-admin --project=chromium-provider --project=chromium-login",
+    "test:regression:headed": "npx playwright test tests/regression/ --project=chromium-admin --project=chromium-provider --project=chromium-login --headed",
+    "test:admin": "npx playwright test tests/**/admin-* --project=chromium-admin",
+    "test:provider": "npx playwright test tests/**/provider-* --project=chromium-provider",
+    "test:login": "npx playwright test tests/**/login-* --project=chromium-login",
+    "test:e2e": "npx playwright test tests/e2e/",
+    "test:api": "npx playwright test tests/api/",
+    "test:visual": "npx playwright test tests/visual/",
+    "test:chromium": "npx playwright test --project=chromium",
+    "test:firefox": "npx playwright test --project=firefox",
+    "test:webkit": "npx playwright test --project=webkit",
+    "report": "npx playwright show-report",
+    "codegen": "npx playwright codegen",
+    "explore": "node explorer/site-explorer.js",
+    "explore:quick": "node explorer/site-explorer.js --max-depth 1 --max-pages 10",
+    "explore:deep": "node explorer/site-explorer.js --max-depth 5 --max-pages 100"
+  },
+  "dependencies": {
+    "@faker-js/faker": "^9.0.0",
+    "dotenv": "^16.4.0"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.49.0",
+    "mupdf": "^1.27.0",
+    "pdf-parse": "^2.4.5",
+    "pdfjs-dist": "^5.5.207"
+  }
+}

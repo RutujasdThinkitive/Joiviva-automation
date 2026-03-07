@@ -1,0 +1,11 @@
+{
+  "JIRA_PROJECT_KEY": "PROJ",
+  "QA_ENV_URL": "https://brightcare.qa.emr.coremedicalcenter.com/",
+  "QA_USERNAME": "aston@mailinator.com",
+  "QA_PASSWORD": "Pass@123",
+  "FE_REPO_BRANCH": "main",
+  "BE_REPO_BRANCH": "qa",
+  "GOOGLE_CHAT_WEBHOOK_URL": "REPLACE_WITH_ACTUAL_WEBHOOK_URL",
+  "FE_REPO_URL": "https://github.com/Core-Medical-EHR/cmc-portal.git",
+  "BE_REPO_URL": "https://github.com/Core-Medical-EHR/master-service.git"
+}
