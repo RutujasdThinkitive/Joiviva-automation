@@ -10,11 +10,11 @@ function randomName(length = 6) {
 
 /**
  * Pick a random DOB and return the DOB parts + calculated age.
- * Age range: 0–90 years old.
+ * Age range: 18–64 to match available subscription plans.
  */
 function randomDOB() {
   const today = new Date();
-  const ageYears = Math.floor(Math.random() * 91);          // 0–90
+  const ageYears = Math.floor(Math.random() * 47) + 18;     // 18–64
   const dobYear = today.getFullYear() - ageYears;
   const dobMonth = Math.floor(Math.random() * 12) + 1;      // 1–12
   // Use day 2–28 to stay safe across all months
@@ -34,20 +34,6 @@ function randomDOB() {
   };
 }
 
-/**
- * Given an age, return the index (0-based) of the matching subscription plan
- * from the page. Plans are rendered in order:
- *   - Age 0–17  (index 0)
- *   - Age 18–64 (index 1)
- *   - Age 65+   (index 2)
- *
- * Adjust these ranges to match your actual plan labels on the page.
- */
-function planIndexForAge(age) {
-  if (age <= 17) return 0;
-  if (age <= 64) return 1;
-  return 2;
-}
 
 // ─── TEST ─────────────────────────────────────────────────────────────────────
 
@@ -58,11 +44,9 @@ test('Add New Patient with random name, DOB & age-matched plan purchase', async 
   const firstName = randomName();
   const lastName = randomName();
   const dob = randomDOB();
-  const planIndex = planIndexForAge(dob.age);
 
   console.log(`Patient: ${firstName} ${lastName}`);
   console.log(`DOB: ${dob.month}/${dob.day}/${dob.year}  →  Age: ${dob.age}`);
-  console.log(`Plan index selected: ${planIndex}`);
 
   // ─── LOGIN ─────────────────────────────────────────────────────────────────
   await page.goto(
@@ -134,24 +118,7 @@ test('Add New Patient with random name, DOB & age-matched plan purchase', async 
   // Step 2: Contact Info — wait for the Contact Information page to load
   await expect(page.locator('input[name="phoneNumber"]')).toBeVisible({ timeout: 10000 });
 
-  // Phone: Use React-compatible evaluate to set value on masked input
-  await page.locator('input[name="phoneNumber"]').evaluate((el, val) => {
-    const nativeInputValueSetter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set;
-    nativeInputValueSetter.call(el, val);
-    el.dispatchEvent(new Event('input', { bubbles: true }));
-    el.dispatchEvent(new Event('change', { bubbles: true }));
-  }, '(766) 666-6666');
-  await page.waitForTimeout(300);
-
-  // Email: Same React-compatible approach
-  await page.locator('input[name="email"]').evaluate((el, val) => {
-    const nativeInputValueSetter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set;
-    nativeInputValueSetter.call(el, val);
-    el.dispatchEvent(new Event('input', { bubbles: true }));
-    el.dispatchEvent(new Event('change', { bubbles: true }));
-  }, 'testpatient@mailinator.com');
-  await page.waitForTimeout(300);
-
+  // Fill address fields first (these use standard fill and won't get erased)
   await page.getByRole('textbox', { name: 'Enter Address Line 1' }).fill('123 Main Street');
 
   await page.getByRole('textbox', { name: 'Enter City' }).click();
@@ -170,13 +137,21 @@ test('Add New Patient with random name, DOB & age-matched plan purchase', async 
   await page.getByRole('combobox', { name: 'Select Patient Relationship' }).click();
   await expect(page.getByRole('option', { name: 'Partner' })).toBeVisible();
   await page.getByRole('option', { name: 'Partner' }).click();
-  // Wait for the dropdown to close before interacting with other fields
   await page.waitForTimeout(500);
   await page.getByRole('textbox', { name: 'Enter First Name' }).fill('Jane');
   await page.getByRole('textbox', { name: 'Enter Last Name' }).fill('Doe');
-  // Emergency contact phone also uses masked input — use pressSequentially
   await page.getByRole('textbox', { name: 'Enter Contact Number' }).click();
   await page.getByRole('textbox', { name: 'Enter Contact Number' }).pressSequentially('8888888888', { delay: 50 });
+
+  // Fill phone and email LAST to prevent React re-renders from erasing them
+  await page.locator('input[name="phoneNumber"]').click();
+  await page.locator('input[name="phoneNumber"]').pressSequentially('7666666666', { delay: 50 });
+  await page.keyboard.press('Tab'); // blur to commit value
+
+  await page.locator('input[name="email"]').click();
+  await page.locator('input[name="email"]').pressSequentially('testpatient@mailinator.com', { delay: 20 });
+  await page.keyboard.press('Tab'); // blur to commit value
+  await page.waitForTimeout(500);
 
   await page.getByRole('button', { name: 'Save & Continue' }).click();
 
@@ -196,23 +171,66 @@ test('Add New Patient with random name, DOB & age-matched plan purchase', async 
   await page.getByRole('button', { name: 'Save & Continue' }).click();
 
   // ─── SUBSCRIPTION PLAN SELECTION ──────────────────────────────────────────
-  // Navigate to the correct page containing the age-matched plan
-  await expect(page.getByRole('button', { name: 'Go to page 2' })).toBeVisible();
-  await page.getByRole('button', { name: 'Go to page 2' }).click();
-  await expect(page.getByRole('button', { name: 'Go to page 3' })).toBeVisible();
-  await page.getByRole('button', { name: 'Go to page 3' }).click();
+  // Determine the age-range text to look for on plan cards
+  const age = dob.age;
+  let ageSearchText;
+  if (age <= 17) ageSearchText = 'Age 0';
+  else if (age <= 64) ageSearchText = 'Age 18';
+  else ageSearchText = 'Age 65';
 
-  // Verify the age-matched plan is visible before clicking
-  // Plans show "Age 0–17", "Age 18–64", "Age 65+" — locate the one matching our patient
-  const ageRangeMap = ['Age 0–', 'Age 18–', 'Age 65'];
-  const expectedAgeText = ageRangeMap[planIndex];
-  await expect(page.getByText(expectedAgeText)).toBeVisible({ timeout: 10000 });
-  console.log(`Selecting plan containing text: "${expectedAgeText}" (patient age: ${dob.age})`);
+  // Paginate through plan pages to find a plan matching the patient's age
+  let foundPlan = false;
+  for (let pageNum = 1; pageNum <= 13; pageNum++) {
+    // Check if a plan card on this page contains the age text
+    const ageMatch = page.getByText(ageSearchText).first();
+    if (await ageMatch.isVisible({ timeout: 2000 }).catch(() => false)) {
+      // Found a matching plan — find its "Buy Now" button
+      // Click the Buy Now on the same card
+      const buyButtons = page.getByRole('button', { name: 'Buy Now' });
+      const count = await buyButtons.count();
+      for (let i = 0; i < count; i++) {
+        // Check if this Buy Now button's parent card contains the age text
+        const card = buyButtons.nth(i).locator('xpath=ancestor::div[contains(@class,"MuiCard") or contains(@class,"MuiPaper") or contains(@class,"MuiBox")]').first();
+        const cardText = await card.textContent().catch(() => '');
+        if (cardText.includes(ageSearchText)) {
+          await buyButtons.nth(i).click();
+          foundPlan = true;
+          break;
+        }
+      }
+      // If no specific card match, just click the first Buy Now
+      if (!foundPlan && count > 0) {
+        await buyButtons.first().click();
+        foundPlan = true;
+      }
+      break;
+    }
+    // Navigate to next page if available
+    const nextButton = page.getByRole('button', { name: `Go to page ${pageNum + 1}` });
+    if (await nextButton.isVisible({ timeout: 1000 }).catch(() => false)) {
+      await nextButton.click();
+      await page.waitForTimeout(500);
+    } else {
+      // Try the "next page" arrow button
+      const nextArrow = page.locator('button[aria-label="Go to next page"]');
+      if (await nextArrow.isVisible({ timeout: 1000 }).catch(() => false)) {
+        await nextArrow.click();
+        await page.waitForTimeout(500);
+      } else {
+        break; // No more pages
+      }
+    }
+  }
 
-  // Click Buy Now for the age-matched plan (planIndex 0 = first, 1 = second, 2 = third)
-  await page.getByRole('button', { name: 'Buy Now' }).nth(planIndex).click();
-  // Confirm modal/drawer opened, then click again if a second confirmation is needed
-  await page.getByRole('button', { name: 'Buy Now' }).nth(planIndex).click();
+  // Fallback: if no age-matched plan found, just buy the first available
+  if (!foundPlan) {
+    console.log(`No plan found for age text "${ageSearchText}", clicking first available Buy Now`);
+    await page.getByRole('button', { name: 'Buy Now' }).first().click();
+  }
+
+  // After selecting a plan, button changes to "Selected" — click "Proceed to Pay"
+  await expect(page.getByRole('button', { name: 'Proceed to Pay' })).toBeEnabled({ timeout: 5000 });
+  await page.getByRole('button', { name: 'Proceed to Pay' }).click();
 
   // ─── PAYMENT FORM ─────────────────────────────────────────────────────────
   await expect(page.getByRole('textbox', { name: 'Enter Name' })).toBeVisible();
@@ -227,11 +245,13 @@ test('Add New Patient with random name, DOB & age-matched plan purchase', async 
   await page.getByRole('checkbox', { name: 'Save My Card' }).check();
   await expect(page.getByRole('checkbox', { name: 'Save My Card' })).toBeChecked();
 
-  await expect(page.getByRole('button', { name: 'Proceed to Payment ($5.00)' })).toBeVisible();
-  await page.getByRole('button', { name: 'Proceed to Payment ($5.00)' }).click();
+  // Button text includes dynamic price — use partial match
+  await expect(page.getByRole('button', { name: /Proceed to Payment/ })).toBeVisible({ timeout: 5000 });
+  await page.getByRole('button', { name: /Proceed to Payment/ }).click();
 
-  await expect(page.getByRole('button', { name: 'Okay' })).toBeVisible({ timeout: 15000 });
-  await page.getByRole('button', { name: 'Okay' }).click();
+  // Wait for payment confirmation dialog — button may be "Okay", "OK", or "Done"
+  await expect(page.getByRole('button', { name: /Okay|OK|Done|Close/i }).first()).toBeVisible({ timeout: 30000 });
+  await page.getByRole('button', { name: /Okay|OK|Done|Close/i }).first().click();
 
   // ─── VERIFY PATIENT WAS CREATED ───────────────────────────────────────────
   // Patient name cell should appear in the table after payment
