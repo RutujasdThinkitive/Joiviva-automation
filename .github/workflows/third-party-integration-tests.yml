@@ -1,0 +1,159 @@
+name: Third-Party Integration Tests - Post Deployment
+
+on:
+  workflow_dispatch: # Manual trigger only — run after new server deployment
+
+jobs:
+  integration-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
+
+      - name: Run Third-Party Integration tests
+        id: test_run
+        continue-on-error: true
+        run: PLAYWRIGHT_JSON_OUTPUT_NAME=test-results.json npx playwright test tests/Third-party-integrations/ --project=chromium --workers=1 --reporter=json
+        env:
+          BASE_URL: ${{ secrets.BASE_URL }}
+          ADMIN_USERNAME: ${{ secrets.ADMIN_USERNAME }}
+          ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}
+          PROVIDER_USERNAME: ${{ secrets.PROVIDER_USERNAME }}
+          PROVIDER_PASSWORD: ${{ secrets.PROVIDER_PASSWORD }}
+
+      - name: Generate HTML report
+        if: always()
+        run: node utils/generate-report.js test-results.json
+
+      - name: Upload HTML report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: integration-test-report-${{ github.run_id }}
+          path: test-report/
+          retention-days: 30
+
+      - name: Upload test results JSON
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: integration-test-results-${{ github.run_id }}
+          path: |
+            test-results.json
+            test-results/
+          retention-days: 30
+
+      - name: Parse test results
+        if: always()
+        id: parse_results
+        run: |
+          if [ -f test-results.json ]; then
+            TOTAL=$(jq '.stats.expected + .stats.unexpected + .stats.flaky + .stats.skipped' test-results.json)
+            PASSED=$(jq '.stats.expected' test-results.json)
+            FAILED=$(jq '.stats.unexpected' test-results.json)
+            SKIPPED=$(jq '.stats.skipped' test-results.json)
+            DURATION=$(jq '.stats.duration' test-results.json)
+            DURATION_SEC=$((DURATION / 1000))
+          else
+            TOTAL="N/A"
+            PASSED="N/A"
+            FAILED="N/A"
+            SKIPPED="N/A"
+            DURATION_SEC="N/A"
+          fi
+          echo "total=$TOTAL" >> $GITHUB_OUTPUT
+          echo "passed=$PASSED" >> $GITHUB_OUTPUT
+          echo "failed=$FAILED" >> $GITHUB_OUTPUT
+          echo "skipped=$SKIPPED" >> $GITHUB_OUTPUT
+          echo "duration=$DURATION_SEC" >> $GITHUB_OUTPUT
+
+      - name: Send Google Chat notification
+        if: always()
+        env:
+          GOOGLE_CHAT_WEBHOOK: ${{ secrets.GOOGLE_CHAT_WEBHOOK }}
+          TEST_RESULT: ${{ steps.test_run.outcome }}
+          TOTAL: ${{ steps.parse_results.outputs.total }}
+          PASSED: ${{ steps.parse_results.outputs.passed }}
+          FAILED: ${{ steps.parse_results.outputs.failed }}
+          SKIPPED: ${{ steps.parse_results.outputs.skipped }}
+          DURATION: ${{ steps.parse_results.outputs.duration }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          if [ "$TEST_RESULT" == "success" ]; then
+            STATUS_ICON="✅"
+            STATUS_TEXT="PASSED"
+          else
+            STATUS_ICON="❌"
+            STATUS_TEXT="FAILED"
+          fi
+
+          curl -X POST "$GOOGLE_CHAT_WEBHOOK" \
+            -H "Content-Type: application/json" \
+            -d "{
+              \"cards\": [{
+                \"header\": {
+                  \"title\": \"${STATUS_ICON} Integration Test Report - ${STATUS_TEXT}\",
+                  \"subtitle\": \"Joiviva QA - Post Deployment\"
+                },
+                \"sections\": [{
+                  \"widgets\": [
+                    {
+                      \"keyValue\": {
+                        \"topLabel\": \"Total Tests\",
+                        \"content\": \"${TOTAL}\"
+                      }
+                    },
+                    {
+                      \"keyValue\": {
+                        \"topLabel\": \"Passed\",
+                        \"content\": \"${PASSED}\"
+                      }
+                    },
+                    {
+                      \"keyValue\": {
+                        \"topLabel\": \"Failed\",
+                        \"content\": \"${FAILED}\"
+                      }
+                    },
+                    {
+                      \"keyValue\": {
+                        \"topLabel\": \"Skipped\",
+                        \"content\": \"${SKIPPED}\"
+                      }
+                    },
+                    {
+                      \"keyValue\": {
+                        \"topLabel\": \"Duration\",
+                        \"content\": \"${DURATION}s\"
+                      }
+                    },
+                    {
+                      \"buttons\": [{
+                        \"textButton\": {
+                          \"text\": \"VIEW FULL REPORT\",
+                          \"onClick\": {
+                            \"openLink\": {
+                              \"url\": \"${RUN_URL}\"
+                            }
+                          }
+                        }
+                      }]
+                    }
+                  ]
+                }]
+              }]
+            }"
