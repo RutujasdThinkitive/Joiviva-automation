@@ -6,8 +6,22 @@ const AUTH_URL = 'https://auth.qa.joiviva.org/realms/master/protocol/openid-conn
 const USERNAME = 'olivia';
 const PASSWORD = 'Pass@123';
 
+// ─── RANDOM ROLE NAME GENERATOR (US Healthcare Domain) ───────────────────────
+
+const roleNames = [
+  'Triage Nurse', 'Charge Nurse', 'Clinical Pharmacist', 'Lab Technician',
+  'Radiology Technician', 'Medical Coder', 'Billing Specialist', 'Front Desk Coordinator',
+  'Patient Care Coordinator', 'Health Information Technician', 'Case Manager',
+  'Utilization Review Nurse', 'Compliance Officer', 'Quality Assurance Analyst',
+  'Referral Coordinator', 'Prior Authorization Specialist', 'Surgical Technologist',
+  'Phlebotomist', 'Respiratory Therapist', 'Physical Therapy Assistant',
+];
+
+const randomSuffix = () => Math.floor(1000 + Math.random() * 9000);
+const randomRoleName = () => `${roleNames[Math.floor(Math.random() * roleNames.length)]} ${randomSuffix()}`;
+
 const ROLE_TYPE = 'Provider';
-const ROLE_NAME = 'staff nurse';
+const ROLE_NAME = randomRoleName();
 
 test('Roles & Permissions - Create Role and Edit Permissions', async ({ page }) => {
 

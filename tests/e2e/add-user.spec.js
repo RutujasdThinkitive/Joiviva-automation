@@ -186,13 +186,18 @@ test('Clinic Users - Add Staff User and Clinic User (Provider)', async ({ page }
   await expect(page.getByText('Provider created successfully')).toBeVisible();
 
   // ─── EDIT CLINIC USER ─────────────────────────────────────────────────────────
-  await page.locator('.MuiSvgIcon-root.MuiSvgIcon-fontSizeMedium.css-1dgyf5k > path').click();
+  const clinicRow = page.getByRole('row', { name: new RegExp(`${clinicFirstName} ${clinicLastName}`) });
+  if (!(await clinicRow.isVisible().catch(() => false))) {
+    await page.getByRole('button', { name: '2' }).click();
+    await page.waitForTimeout(2000);
+  }
+  await clinicRow.getByTestId('MoreVertIcon').click();
   await page.getByRole('button', { name: 'Edit User' }).click();
 
   // Update gender
-  await page.getByText('Male', { exact: true }).click();
-  await page.getByText('Female').click();
+  await page.locator('#mui-component-select-gender').click();
+  await page.getByRole('option', { name: 'Female', exact: true }).click();
 
   await page.getByRole('button', { name: 'Save' }).click();
-  await expect(page.getByText('User updated successfully')).toBeVisible();
+  await expect(page.getByText('User updated successfully')).toBeVisible({ timeout: 15000 });
 });
