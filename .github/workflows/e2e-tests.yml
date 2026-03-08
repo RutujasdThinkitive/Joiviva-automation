@@ -39,7 +39,7 @@ jobs:
       - name: Run ${{ matrix.spec }}
         id: test_run
         continue-on-error: true
-        run: PLAYWRIGHT_JSON_OUTPUT_NAME=test-results.json npx playwright test ${{ matrix.spec }} --project=chromium --reporter=json
+        run: PLAYWRIGHT_JSON_OUTPUT_NAME=test-results.json npx playwright test ${{ matrix.spec }} --project=chromium --reporter=json,blob
         env:
           BASE_URL: ${{ secrets.BASE_URL }}
           ADMIN_USERNAME: ${{ secrets.ADMIN_USERNAME }}
@@ -55,6 +55,7 @@ jobs:
           path: |
             test-results.json
             test-results/
+            blob-report/
           retention-days: 30
 
   # ─── MERGE RESULTS + GENERATE REPORT + NOTIFY ───────────────────────────────
@@ -85,17 +86,26 @@ jobs:
         with:
           pattern: results-*
           path: all-results/
+          merge-multiple: false
 
       - name: Merge results and generate HTML report
         run: |
+          mkdir -p all-results test-results
+
+          # Debug: show what was downloaded
+          echo "Downloaded artifacts:"
+          ls -R all-results/ || echo "all-results/ is empty"
+
           # Merge all JSON results into one
           node -e "
             const fs = require('fs');
             const path = require('path');
-            const dirs = fs.readdirSync('all-results');
+            const baseDir = 'all-results';
+            if (!fs.existsSync(baseDir)) { console.log('No results found'); process.exit(0); }
+            const dirs = fs.readdirSync(baseDir);
             const merged = { stats: { expected: 0, unexpected: 0, flaky: 0, skipped: 0, duration: 0 }, suites: [] };
             for (const dir of dirs) {
-              const file = path.join('all-results', dir, 'test-results.json');
+              const file = path.join(baseDir, dir, 'test-results.json');
               if (fs.existsSync(file)) {
                 const data = JSON.parse(fs.readFileSync(file, 'utf8'));
                 merged.stats.expected += data.stats?.expected || 0;
@@ -110,14 +120,11 @@ jobs:
             console.log('Merged stats:', merged.stats);
           "
 
-          # Generate Playwright HTML report from all test-results folders
+          # Copy test-results artifacts (screenshots, traces, etc.)
           cp -r all-results/*/test-results/* test-results/ 2>/dev/null || true
-          npx playwright show-report --host 0.0.0.0 &
-          sleep 2
-          kill %1 2>/dev/null || true
 
       - name: Generate HTML report
-        run: npx playwright test --reporter=html --last-failed || true
+        run: npx playwright merge-reports --reporter=html all-results/*/blob-report 2>/dev/null || npx playwright test --reporter=html --last-failed 2>/dev/null || true
 
       - name: Upload Playwright HTML report
         uses: actions/upload-artifact@v4
