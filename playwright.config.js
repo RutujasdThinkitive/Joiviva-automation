@@ -20,6 +20,13 @@ module.exports = defineConfig({
   reporter: [
     ['html', { open: 'never' }],
     ['list'],
+    ['ortoni-report/ortoni-report', {
+      projectName: 'Joiviva QA Automation',
+      testType: 'E2E Tests',
+      authorName: 'QA Team',
+      preferredTheme: 'dark',
+      open: process.env.CI ? 'never' : 'on-failure',
+    }],
   ],
   use: {
     baseURL: process.env.BASE_URL || 'https://portal.qa.joiviva.org',

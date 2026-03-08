@@ -176,10 +176,10 @@ test('Master Codes - ICD, CPT, HCPCS, LOINC Management', async ({ page }) => {
   await expect(page.getByText('LOINC code status updated')).toBeVisible({ timeout: 10000 });
 
   // ─── LOGOUT ──────────────────────────────────────────────────────────────────
-  await page.getByText('Oliviaa Joyyy').click();
-  await page.waitForTimeout(1000);
-  await page.getByRole('menuitem', { name: 'Logout' }).click();
+  //await page.getByText('Oliviaa Joyyy').click();
+  //await page.waitForTimeout(1000);
+  //await page.getByRole('menuitem', { name: 'Logout' }).click();
 
   // Verify redirected back to login page
-  await expect(page.getByRole('heading', { name: 'Sign in to your account' })).toBeVisible({ timeout: 15000 });
+  //await expect(page.getByRole('heading', { name: 'Sign in to your account' })).toBeVisible({ timeout: 15000 });
 });

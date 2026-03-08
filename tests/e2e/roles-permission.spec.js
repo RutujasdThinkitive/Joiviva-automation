@@ -8,17 +8,19 @@ const PASSWORD = 'Pass@123';
 
 // ─── RANDOM ROLE NAME GENERATOR (US Healthcare Domain) ───────────────────────
 
-const roleNames = [
-  'Triage Nurse', 'Charge Nurse', 'Clinical Pharmacist', 'Lab Technician',
-  'Radiology Technician', 'Medical Coder', 'Billing Specialist', 'Front Desk Coordinator',
-  'Patient Care Coordinator', 'Health Information Technician', 'Case Manager',
-  'Utilization Review Nurse', 'Compliance Officer', 'Quality Assurance Analyst',
-  'Referral Coordinator', 'Prior Authorization Specialist', 'Surgical Technologist',
-  'Phlebotomist', 'Respiratory Therapist', 'Physical Therapy Assistant',
+const rolePrefixes = [
+  'Triage', 'Charge', 'Clinical', 'Senior', 'Lead', 'Chief', 'Associate',
+  'Junior', 'Regional', 'Certified', 'Licensed', 'Advanced', 'Primary',
 ];
 
-const randomSuffix = () => Math.floor(1000 + Math.random() * 9000);
-const randomRoleName = () => `${roleNames[Math.floor(Math.random() * roleNames.length)]} ${randomSuffix()}`;
+const roleSuffixes = [
+  'Nurse', 'Pharmacist', 'Technician', 'Coordinator', 'Specialist',
+  'Therapist', 'Coder', 'Analyst', 'Manager', 'Officer',
+  'Phlebotomist', 'Assistant', 'Administrator', 'Consultant',
+];
+
+const randItem = (arr) => arr[Math.floor(Math.random() * arr.length)];
+const randomRoleName = () => `${randItem(rolePrefixes)} ${randItem(roleSuffixes)}`;
 
 const ROLE_TYPE = 'Provider';
 const ROLE_NAME = randomRoleName();

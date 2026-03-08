@@ -34,6 +34,7 @@
   "devDependencies": {
     "@playwright/test": "^1.49.0",
     "mupdf": "^1.27.0",
+    "ortoni-report": "^4.0.7",
     "pdf-parse": "^2.4.5",
     "pdfjs-dist": "^5.5.207"
   }
