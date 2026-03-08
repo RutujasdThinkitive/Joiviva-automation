@@ -7,18 +7,9 @@ on:
   workflow_dispatch: # Allow manual trigger
 
 jobs:
-  # ─── PARALLEL TEST EXECUTION (each spec file on its own worker) ──────────────
   e2e-tests:
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    strategy:
-      fail-fast: false
-      matrix:
-        spec:
-          - tests/e2e/add-user.spec.js
-          - tests/e2e/clinic-management.spec.js
-          - tests/e2e/roles-permission.spec.js
-          - tests/e2e/admin-master-code-crud.spec.js
 
     steps:
       - name: Checkout code
@@ -36,95 +27,16 @@ jobs:
       - name: Install Playwright browsers
         run: npx playwright install --with-deps chromium
 
-      - name: Run ${{ matrix.spec }}
+      - name: Run E2E tests (each spec file on separate worker)
         id: test_run
         continue-on-error: true
-        run: PLAYWRIGHT_JSON_OUTPUT_NAME=test-results.json npx playwright test ${{ matrix.spec }} --project=chromium --reporter=json,blob
+        run: PLAYWRIGHT_JSON_OUTPUT_NAME=test-results.json npx playwright test tests/e2e/ --project=chromium --workers=4 --reporter=json,html
         env:
           BASE_URL: ${{ secrets.BASE_URL }}
           ADMIN_USERNAME: ${{ secrets.ADMIN_USERNAME }}
           ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}
           PROVIDER_USERNAME: ${{ secrets.PROVIDER_USERNAME }}
           PROVIDER_PASSWORD: ${{ secrets.PROVIDER_PASSWORD }}
-
-      - name: Upload test results
-        uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: results-${{ strategy.job-index }}
-          path: |
-            test-results.json
-            test-results/
-            blob-report/
-          retention-days: 30
-
-  # ─── MERGE RESULTS + GENERATE REPORT + NOTIFY ───────────────────────────────
-  report:
-    needs: e2e-tests
-    if: always()
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: 'npm'
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Install Playwright browsers
-        run: npx playwright install --with-deps chromium
-
-      - name: Download all test results
-        uses: actions/download-artifact@v4
-        with:
-          pattern: results-*
-          path: all-results/
-          merge-multiple: false
-
-      - name: Merge results and generate HTML report
-        run: |
-          mkdir -p all-results test-results
-
-          # Debug: show what was downloaded
-          echo "Downloaded artifacts:"
-          ls -R all-results/ || echo "all-results/ is empty"
-
-          # Merge all JSON results into one
-          node -e "
-            const fs = require('fs');
-            const path = require('path');
-            const baseDir = 'all-results';
-            if (!fs.existsSync(baseDir)) { console.log('No results found'); process.exit(0); }
-            const dirs = fs.readdirSync(baseDir);
-            const merged = { stats: { expected: 0, unexpected: 0, flaky: 0, skipped: 0, duration: 0 }, suites: [] };
-            for (const dir of dirs) {
-              const file = path.join(baseDir, dir, 'test-results.json');
-              if (fs.existsSync(file)) {
-                const data = JSON.parse(fs.readFileSync(file, 'utf8'));
-                merged.stats.expected += data.stats?.expected || 0;
-                merged.stats.unexpected += data.stats?.unexpected || 0;
-                merged.stats.flaky += data.stats?.flaky || 0;
-                merged.stats.skipped += data.stats?.skipped || 0;
-                merged.stats.duration += data.stats?.duration || 0;
-                merged.suites.push(...(data.suites || []));
-              }
-            }
-            fs.writeFileSync('test-results.json', JSON.stringify(merged, null, 2));
-            console.log('Merged stats:', merged.stats);
-          "
-
-          # Copy test-results artifacts (screenshots, traces, etc.)
-          cp -r all-results/*/test-results/* test-results/ 2>/dev/null || true
-
-      - name: Generate HTML report
-        run: npx playwright merge-reports --reporter=html all-results/*/blob-report 2>/dev/null || npx playwright test --reporter=html --last-failed 2>/dev/null || true
 
       - name: Upload Playwright HTML report
         uses: actions/upload-artifact@v4
@@ -140,6 +52,16 @@ jobs:
         with:
           name: ortoni-report-${{ github.run_id }}
           path: ortoni-report/
+          retention-days: 30
+
+      - name: Upload test results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: test-results-${{ github.run_id }}
+          path: |
+            test-results.json
+            test-results/
           retention-days: 30
 
       - name: Parse test results
@@ -170,7 +92,7 @@ jobs:
         if: always()
         env:
           GOOGLE_CHAT_WEBHOOK: ${{ secrets.GOOGLE_CHAT_WEBHOOK }}
-          TEST_RESULT: ${{ needs.e2e-tests.result }}
+          TEST_RESULT: ${{ steps.test_run.outcome }}
           TOTAL: ${{ steps.parse_results.outputs.total }}
           PASSED: ${{ steps.parse_results.outputs.passed }}
           FAILED: ${{ steps.parse_results.outputs.failed }}
