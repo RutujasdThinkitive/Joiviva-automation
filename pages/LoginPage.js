@@ -48,6 +48,27 @@ class LoginPage extends BasePage {
     await this.page.waitForURL(/\/provider\//, { timeout: 30000 });
   }
 
+  async loginAsProvider2() {
+    const username = process.env.PROVIDER2_USERNAME || 'palak';
+    const password = process.env.PROVIDER2_PASSWORD || 'Pass@123';
+    await this.login(username, password);
+    await this.page.waitForURL(/\/provider\//, { timeout: 30000 });
+  }
+
+  async loginAsProvider3() {
+    const username = process.env.PROVIDER3_USERNAME || 'vicky';
+    const password = process.env.PROVIDER3_PASSWORD || 'Pass@123';
+    await this.login(username, password);
+    await this.page.waitForURL(/\/provider\//, { timeout: 30000 });
+  }
+
+  async loginAsPatient() {
+    const username = process.env.PATIENT_USERNAME || 'chinu';
+    const password = process.env.PATIENT_PASSWORD || 'Pass@123';
+    await this.login(username, password);
+    await this.page.waitForURL(/\/patient\//, { timeout: 30000 });
+  }
+
   async getErrorText() {
     try {
       await this.errorMessage.waitFor({ state: 'visible', timeout: 5000 });

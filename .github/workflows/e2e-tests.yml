@@ -30,13 +30,21 @@ jobs:
       - name: Run E2E tests (each spec file on separate worker)
         id: test_run
         continue-on-error: true
-        run: PLAYWRIGHT_JSON_OUTPUT_NAME=test-results.json npx playwright test tests/e2e/ --project=chromium --workers=4 --reporter=json
+        run: PLAYWRIGHT_JSON_OUTPUT_NAME=test-results.json npx playwright test tests/e2e/ --project=chromium --workers=1 --reporter=json
         env:
           BASE_URL: ${{ secrets.BASE_URL }}
           ADMIN_USERNAME: ${{ secrets.ADMIN_USERNAME }}
           ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}
           PROVIDER_USERNAME: ${{ secrets.PROVIDER_USERNAME }}
           PROVIDER_PASSWORD: ${{ secrets.PROVIDER_PASSWORD }}
+          PROVIDER2_USERNAME: ${{ secrets.PROVIDER2_USERNAME }}
+          PROVIDER2_PASSWORD: ${{ secrets.PROVIDER2_PASSWORD }}
+          PROVIDER3_USERNAME: ${{ secrets.PROVIDER3_USERNAME }}
+          PROVIDER3_PASSWORD: ${{ secrets.PROVIDER3_PASSWORD }}
+          PATIENT_USERNAME: ${{ secrets.PATIENT_USERNAME }}
+          PATIENT_PASSWORD: ${{ secrets.PATIENT_PASSWORD }}
+          PATIENT2_USERNAME: ${{ secrets.PATIENT2_USERNAME }}
+          PATIENT2_PASSWORD: ${{ secrets.PATIENT2_PASSWORD }}
 
       - name: Generate HTML report
         if: always()

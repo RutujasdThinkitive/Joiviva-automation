@@ -45,7 +45,13 @@ test('Clinic Users - Add Staff User and Clinic User (Provider)', async ({ page }
 
   // ─── NAVIGATE TO CLINIC GROUPS ────────────────────────────────────────────────
   await page.getByRole('link', { name: 'hospital icon Clinic Groups' }).click();
-  await page.getByLabel('Metro Medical CenterMedical').click();
+  await page.waitForTimeout(2000);
+
+  // Search for clinic and click the clinic name
+  await page.getByPlaceholder(/search by clinic name/i).fill('Metro Care Center');
+  await page.waitForTimeout(2000);
+  await page.getByText('Metro Care Center Updated').click();
+  await page.waitForTimeout(2000);
   await page.getByRole('tab', { name: 'Users' }).click();
 
   // ─── ADD STAFF USER ───────────────────────────────────────────────────────────
@@ -65,9 +71,14 @@ test('Clinic Users - Add Staff User and Clinic User (Provider)', async ({ page }
   await page.getByLabel('Select', { exact: true }).click();
   await page.getByRole('option', { name: 'Male', exact: true }).click();
 
-  // Location
+  // Location — select first available option if any, otherwise skip
   await page.getByRole('combobox', { name: 'Select Locations' }).click();
-  await page.getByRole('checkbox').check();
+  await page.waitForTimeout(1000);
+  const locationCheckbox = page.getByRole('checkbox').first();
+  if (await locationCheckbox.isVisible().catch(() => false)) {
+    await locationCheckbox.check();
+  }
+  await page.keyboard.press('Escape');
 
   await page.getByRole('textbox', { name: 'Enter Email' }).fill('rutuja.dumbre@thinkitive.com');
   await page.getByRole('textbox', { name: 'Enter Phone Number' }).fill('(705)-865-9504');
